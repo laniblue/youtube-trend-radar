@@ -220,11 +220,11 @@ function median(a){if(!a.length)return 0;const b=[...a].sort((x,y)=>x-y),i=Math.
 const isShort=v=>v.dur>0&&v.dur<=180;
 const vids=(list,sh)=>sh?list.filter(isShort):list;
 
-const S={key:lsGet('ytr_key')||'',regions:lsJ('ytr_regions',['KR','JP','US']),main:lsGet('ytr_main')||'JP',cmp:lsGet('ytr_cmp')||'KR',shorts:lsGet('ytr_shorts')==='1',tab:'lead',cat:'all',sort:'speed',kw:null,data:{},loading:'',busy:false,err:'',auto:+(lsGet('ytr_auto')||0),timer:null,last:0};
+const S={key:lsGet('ytr_key')||'',regions:lsJ('ytr_regions',['KR','JP','US']),main:lsGet('ytr_main2')||'KR',cmp:'JP',shorts:lsGet('ytr_shorts')==='1',tab:'lead',cat:'all',sort:'speed',kw:null,data:{},loading:'',busy:false,err:'',auto:+(lsGet('ytr_auto')||0),timer:null,last:0};
 S.topics=lsJ('ytr_topics2',DEF_TOPICS);
 S.groups=lsJ('ytr_groups',['base','family','men','my']);
 const onTopics=()=>S.topics.filter(t=>S.groups.includes(t.g||'my'));S.editTopics=false;S.shorts=true;S.cat='';
-S.regions=S.regions.filter(r=>REGIONS[r]);if(!S.regions.length)S.regions=['KR'];
+S.regions=['KR','US','JP'];if(!['KR','US'].includes(S.main))S.main='KR';
 
 /* ---------- API ---------- */
 async function api(path,params){
@@ -410,11 +410,10 @@ function renderControls(){
   else if(S.last){const t=new Date(S.last);st=`${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')} 업데이트`}
   else if(!S.key)st='API 키를 먼저 넣어 주세요';
   $('#controls').innerHTML=`
-  <div class="label">나라</div>
-  <div class="chips">${Object.keys(REGIONS).map(r=>`<button class="chip ${S.regions.includes(r)?'on':''}" data-act="region" data-r="${r}">${REGIONS[r]}</button>`).join('')}</div>
-  <div class="ctl-row">
-    <label class="sel">보기 <select data-act="main">${opt(S.main)}</select></label>
-    <label class="sel">비교 <select data-act="cmp">${opt(S.cmp)}</select></label>
+  <div class="ctl-row" style="margin-top:0">
+    <span class="label" style="margin:0">소재 찾을 나라</span>
+    <div class="chips">${['KR','US'].map(r=>`<button class="chip ${S.main===r?'on':''}" data-act="mainbtn" data-r="${r}">${REGIONS[r]}</button>`).join('')}</div>
+    <span class="status">우리 시청자: 일본</span>
   </div>
   <div class="ctl-row">
     <button class="btn" data-act="load" ${S.busy?'disabled':''}>${S.last?'새로고침':'불러오기'}</button>
@@ -432,8 +431,8 @@ function renderSummary(){
   const newk=(pk?kws.filter(o=>!pk.includes(o.k)):kws).slice(0,5);
   let gapHtml='비교 나라를 불러와 주세요';
   if(S.data[S.cmp]&&S.cmp!==S.main){
-    const g=gaps(S.main,S.cmp).filter(x=>x.a<0.03&&x.b>=0.05).sort((a,b)=>b.gap-a.gap)[0];
-    gapHtml=g?`${esc(g.name)}<small>${REGIONS[S.cmp]} ${pct(g.b)} · ${REGIONS[S.main]} ${pct(g.a)}</small>`:`없어요`;
+    const g=gaps(S.main,S.cmp).filter(x=>x.a>=0.05&&x.b<0.03).sort((a,b)=>a.gap-b.gap)[0];
+    gapHtml=g?`${esc(g.name)}<small>${REGIONS[S.main]} ${pct(g.a)} · 일본 ${pct(g.b)}</small>`:`없어요`;
   }
   const fast=[...vids(d.chart,S.shorts)].sort((a,b)=>b.speed-a.speed)[0];
   el.innerHTML=`<div class="card">
@@ -441,7 +440,7 @@ function renderSummary(){
    <div class="hero-t"><b>${esc(top.name)}</b> ${pct(top.share)}</div>
    <div class="boxes">
     <div class="box"><div class="k">뜨는 단어</div><div class="v">${newk.length?newk.map(o=>esc(o.k)).join(' · '):'아직 없어요'}</div></div>
-    <div class="box"><div class="k">${REGIONS[S.cmp]}에서만 뜨는 주제</div><div class="v">${gapHtml}</div></div>
+    <div class="box"><div class="k">일본엔 아직 없는 소재</div><div class="v">${gapHtml}</div></div>
     <div class="box"><div class="k">제일 빨리 크는 영상</div>${fast?`<a class="hero-v" href="https://www.youtube.com/watch?v=${encodeURIComponent(fast.id)}" target="_blank" rel="noopener">${fast.thumb?`<img src="${esc(fast.thumb)}" alt="">`:''}<div class="v">${esc(fast.title)}<small>시간당 +${fmt(fast.speed)}</small></div></a>`:'<div class="v">-</div>'}</div>
    </div></div>`;
 }
@@ -574,6 +573,7 @@ document.addEventListener('click',e=>{
   else if(a==='region'){const r=t.dataset.r;if(S.regions.includes(r)){if(S.regions.length>1)S.regions=S.regions.filter(x=>x!==r)}else S.regions.push(r);
     if(!S.regions.includes(S.main))S.main=S.regions[0];if(!S.regions.includes(S.cmp))S.cmp=S.regions[1]||S.regions[0];
     lsSetJ('ytr_regions',S.regions);lsSet('ytr_main',S.main);lsSet('ytr_cmp',S.cmp);renderAll()}
+  else if(a==='mainbtn'){S.main=t.dataset.r;lsSet('ytr_main2',S.main);S.kw=null;S.cat='';if(S.key&&!(S.data[S.main]&&S.data[S.main].topics.length))loadAll();else renderAll()}
   else if(a==='shorts'){S.shorts=!S.shorts;lsSet('ytr_shorts',S.shorts?'1':'0');renderAll()}
   else if(a==='load')loadAll();
   else if(a==='tab'){S.tab=t.dataset.t;renderTabs();renderView()}
