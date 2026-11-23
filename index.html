@@ -221,8 +221,17 @@ const isShort=v=>v.dur>0&&v.dur<=180;
 const vids=(list,sh)=>sh?list.filter(isShort):list;
 
 const S={key:lsGet('ytr_key')||'',regions:lsJ('ytr_regions',['KR','JP','US']),main:lsGet('ytr_main2')||'KR',cmp:'JP',shorts:lsGet('ytr_shorts')==='1',tab:'lead',cat:'all',sort:'speed',kw:null,data:{},loading:'',busy:false,err:'',auto:+(lsGet('ytr_auto')||0),timer:null,last:0};
-S.topics=lsJ('ytr_topics2',DEF_TOPICS);
-S.groups=lsJ('ytr_groups',['base','family','men','my']);
+S.topics=[
+ {g:'base',n:'웃긴 영상',q:{KR:'웃긴 영상',US:'funny'}},
+ {g:'base',n:'장난·몰카',q:{KR:'몰카 장난',US:'prank'}},
+ {g:'base',n:'가족',q:{KR:'가족 웃긴',US:'family funny'}},
+ {g:'base',n:'부부',q:{KR:'부부',US:'husband wife funny'}},
+ {g:'base',n:'동물',q:{KR:'강아지 고양이',US:'funny dog cat'}},
+ {g:'base',n:'스포츠',q:{KR:'스포츠',US:'sports'}},
+ {g:'base',n:'블랙박스·사고',q:{KR:'블랙박스',US:'dashcam'}},
+ {g:'base',n:'장인·기술',q:{KR:'장인 기술',US:'craftsman skill'}}
+];
+S.groups=['base'];
 const onTopics=()=>S.topics.filter(t=>S.groups.includes(t.g||'my'));S.editTopics=false;S.shorts=true;S.cat='';
 S.regions=['KR','US','JP'];if(!['KR','US'].includes(S.main))S.main='KR';
 
@@ -258,6 +267,25 @@ function norm(it){
 }
 async function pool(items,n,fn){let i=0;await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(i<items.length){const it=items[i++];await fn(it)}}))}
 
+async function idsToVideos(s){
+  const ids=(s.items||[]).map(x=>x.id&&x.id.videoId).filter(Boolean);
+  if(!ids.length)return [];
+  const j=await api('videos',{part:'snippet,statistics,contentDetails',id:ids.join(',')});
+  return (j.items||[]).map(norm);
+}
+async function moreTopic(name){
+  const rc=S.main,d=S.data[rc];const t=d&&d.topics.find(x=>x.n===name);if(!t||!t.src||!t.src.next||S.busy)return;
+  if(unitsUsed()+101>DAY_LIMIT){S.err='오늘 무료 사용량이 거의 다 됐어요';renderAll();return}
+  S.busy=true;renderView();
+  try{
+    const s=await api('search',{part:'snippet',type:'video',order:'viewCount',videoDuration:'short',publishedAfter:new Date(t.src.t-3*864e5).toISOString(),regionCode:rc,relevanceLanguage:LANG[rc]||'en',maxResults:50,q:t.src.q,pageToken:t.src.next});
+    const add=(await idsToVideos(s)).filter(x=>!t.src.items.some(y=>y.id===x.id));
+    t.src.items.push(...add);t.src.next=s.nextPageToken||null;lsSetJ(t.src.ck,t.src);
+    const now=Date.now();
+    add.forEach(x=>{const v=Object.assign({},x);v.ageH=Math.max(1,(now-v.pub)/36e5);v.avg=v.views/v.ageH;v.speed=v.avg;v.real=false;t.vids.push(v)});
+  }catch(e){S.err=errText(e)}
+  S.busy=false;renderAll();
+}
 async function loadRegion(rc){
   const now=Date.now();
   let cats=lsJ('ytr_cats_'+rc,null);
@@ -271,7 +299,7 @@ async function loadRegion(rc){
   for(let i=0;i<4;i++){const j=await api('videos',Object.assign({},P,{pageToken:token}));chart.push(...(j.items||[]).map(norm));token=j.nextPageToken;if(!token)break}
   const byCat={};
   await pool(Object.keys(cats.map).filter(id=>cats.map[id].ok),4,async id=>{
-    try{const j=await api('videos',Object.assign({},P,{videoCategoryId:id}));if(j.items&&j.items.length)byCat[id]=j.items.map(norm)}
+    try{let tk=null,l=[];for(let p=0;p<2;p++){const j=await api('videos',Object.assign({},P,{videoCategoryId:id,pageToken:tk}));l.push(...(j.items||[]).map(norm));tk=j.nextPageToken;if(!tk)break}if(l.length)byCat[id]=l}
     catch(e){if(e.fatal)throw e}
   });
   // 내 주제: 최근 3일 영상 검색 (보기 나라만, 3시간마다)
@@ -282,17 +310,15 @@ async function loadRegion(rc){
       let c=lsJ(ck,null);
       if((!c||now-c.t>TOPIC_TTL)&&unitsUsed()+101>DAY_LIMIT){S.topicErr='오늘 무료 사용량이 거의 다 돼서 일부 주제는 예전 결과예요';if(!c)continue}
       else if(!c||now-c.t>TOPIC_TTL)try{
-        const s=await api('search',{part:'snippet',type:'video',order:'viewCount',videoDuration:'short',publishedAfter:new Date(now-3*864e5).toISOString(),regionCode:rc,relevanceLanguage:LANG[rc]||'en',maxResults:25,q});
-        const ids=(s.items||[]).map(x=>x.id&&x.id.videoId).filter(Boolean);
-        let items=[];
-        if(ids.length){const j=await api('videos',{part:'snippet,statistics,contentDetails',id:ids.join(',')});items=(j.items||[]).map(norm)}
-        c={t:now,items};lsSetJ(ck,c);
+        const s=await api('search',{part:'snippet',type:'video',order:'viewCount',videoDuration:'short',publishedAfter:new Date(now-3*864e5).toISOString(),regionCode:rc,relevanceLanguage:LANG[rc]||'en',maxResults:50,q});
+        c={t:now,items:await idsToVideos(s),next:s.nextPageToken||null,q,ck};lsSetJ(ck,c);
       }catch(e){
         if(/quota|dailyLimit/i.test((e.message||'')+(e.reason||''))){S.topicErr='오늘 검색 사용량을 다 써서 내 주제는 예전 결과예요';if(!c)break;}
         else if(e.fatal)throw e;
         if(!c)continue;
       }
-      topics.push({n:tp.n,g:tp.g||'my',vids:c.items.map(x=>Object.assign({},x))});
+      c.q=q;c.ck=ck;
+      topics.push({n:tp.n,g:tp.g||'my',src:c,vids:c.items.map(x=>Object.assign({},x))});
     }
   }
   // 속도 계산: 지난 기록(5분 이상 전)과 비교하면 실측, 없으면 업로드 후 평균
@@ -325,7 +351,7 @@ async function loadRegion(rc){
 async function loadAll(){
   if(!S.key){openSettings();return}
   if(S.busy)return;
-  S.busy=true;S.err='';S.topicErr='';const fails=[];
+  S.busy=true;S.err='';S.topicErr='';const fails=[];S.regions=[S.main];
   for(let i=0;i<S.regions.length;i++){
     const rc=S.regions[i];S.loading=REGIONS[rc]+' 불러오는 중 ('+(i+1)+'/'+S.regions.length+')';renderControls();
     try{await loadRegion(rc)}catch(e){if(e.fatal){S.err=errText(e);break}fails.push(REGIONS[rc])}
@@ -417,7 +443,6 @@ function renderControls(){
   </div>
   <div class="ctl-row">
     <button class="btn" data-act="load" ${S.busy?'disabled':''}>${S.last?'새로고침':'불러오기'}</button>
-    <label class="sel">자동 <select data-act="auto"><option value="0" ${!S.auto?'selected':''}>끔</option><option value="30" ${S.auto==30?'selected':''}>30분마다</option><option value="60" ${S.auto==60?'selected':''}>1시간마다</option></select></label>
     <span class="status">${st}</span>
   </div>`;
   if(!loaded.length&&!S.loading&&S.key&&!S.last)$('#controls .status').textContent='불러오기를 눌러 주세요';
@@ -445,6 +470,16 @@ function renderSummary(){
    </div></div>`;
 }
 const TABS=[['lead','뜨는 쇼츠'],['type','반짝 vs 꾸준'],['kw','뜨는 단어'],['cmp','나라 비교']];
+function viewSimple(v,d){
+  const tps=d.topics.filter(t=>vids(t.vids,true).length);
+  if(!tps.some(t=>'t:'+t.n===S.cat))S.cat=tps[0]?'t:'+tps[0].n:'';
+  S.sort='speed';
+  const list=S.cat?answerList(d):[];
+  const t=S.cat&&d.topics.find(x=>'t:'+x.n===S.cat);
+  v.innerHTML=`<div class="card" style="padding:20px"><div class="chips">${tps.map(x=>`<button class="chip ${S.cat==='t:'+x.n?'on':''}" data-act="cat" data-id="t:${esc(x.n)}">${esc(x.n)}</button>`).join('')||'<span class="sub">새로고침하면 떠요</span>'}</div></div>
+   ${list.length?`<div class="grid">${list.map((x,i)=>videoCard(x,i)).join('')}</div>`:''}
+   ${t&&t.src&&t.src.next&&list.length<100?`<div style="text-align:center;margin-top:20px"><button class="btn ghost" data-act="more" data-n="${esc(t.n)}" ${S.busy?'disabled':''}>${S.busy?'불러오는 중':'더 보기'}</button></div>`:''}`;
+}
 function viewShorts(v,d){
   const opts=[];
   d.topics.filter(t=>S.groups.includes(t.g||'my')).forEach(t=>{const l=vids(t.vids,true);if(l.length)opts.push({id:'t:'+t.n,name:t.n,sum:[...l].sort((a,b)=>b.speed-a.speed).slice(0,10).reduce((s,x)=>s+x.speed,0),my:true})});
@@ -462,13 +497,14 @@ function viewShorts(v,d){
    <button class="chip" data-act="edittopics" style="background:none;color:var(--t3)">${S.editTopics?'닫기':'+ 주제'}</button></div>
    <div class="chips" style="margin-top:14px">${[['speed','빨리 크는 순'],['views','조회수 순'],['new','최신 순']].map(s=>`<button class="chip sm ${S.sort===s[0]?'on':''}" data-act="sort" data-s="${s[0]}" style="${S.sort===s[0]?'background:var(--t1)':''}">${s[1]}</button>`).join('')}</div></div>
    ${edit}
-   ${list.length?`<div class="grid">${list.map((x,i)=>videoCard(x,i)).join('')}</div>`:'<div class="card"><div class="empty">새로고침하면 떠요</div></div>'}`;
+   ${list.length?`<div class="grid">${list.map((x,i)=>videoCard(x,i)).join('')}</div>`:'<div class="card"><div class="empty">새로고침하면 떠요</div></div>'}
+   ${(()=>{const t=S.cat.startsWith('t:')&&d.topics.find(x=>x.n===S.cat.slice(2));return t&&t.src&&t.src.next&&list.length<100?`<div style="text-align:center;margin-top:20px"><button class="btn ghost" data-act="more" data-n="${esc(t.n)}" ${S.busy?'disabled':''}>${S.busy?'불러오는 중':'더 보기 (100위까지)'}</button></div>`:''})()}`;
 }
 function renderTabs(){$('#tabs').innerHTML=TABS.map(t=>`<button class="tab ${S.tab===t[0]?'on':''}" data-act="tab" data-t="${t[0]}">${t[1]}</button>`).join('')}
 function renderView(){
   const v=$('#view'),d=S.data[S.main];
   if(!d){v.innerHTML=S.key&&!S.busy?`<div class="card"><div class="empty">"지금 불러오기"를 눌러 주세요</div></div>`:'';return}
-  ({lead:viewShorts,answer:viewShorts,type:viewType,kw:viewKw,cmp:viewCmp})[S.tab](v,d);
+  ({lead:viewSimple,answer:viewSimple,type:viewType,kw:viewKw,cmp:viewCmp})[S.tab](v,d);
 }
 function viewLead(v,d){
   const cs=catStats(S.main,S.shorts),max=cs[0]?cs[0].share:1;
@@ -498,7 +534,7 @@ function answerList(d){
   else{const m=new Map();d.chart.filter(x=>x.cat===S.cat).forEach(x=>m.set(x.id,x));(d.byCat[S.cat]||[]).forEach(x=>{if(!m.has(x.id))m.set(x.id,x)});list=[...m.values()]}
   list=vids(list,S.shorts);
   const k=S.sort==='views'?'views':S.sort==='new'?'pub':'speed';
-  return [...list].sort((a,b)=>b[k]-a[k]).slice(0,48);
+  return [...list].sort((a,b)=>b[k]-a[k]).slice(0,100);
 }
 function viewAnswer(v,d){
   const ids=[...new Set([...d.chart.map(x=>x.cat),...Object.keys(d.byCat)])].filter(id=>!HIDE.has(id));
@@ -557,7 +593,9 @@ function viewCmp(v){
 function renderAll(){
   renderControls();
   $('#msg').innerHTML=S.err?`<div class="err">${esc(S.err)}</div>`:'';
-  renderSummary();renderTabs();renderView();
+  S.tab='lead';$('#tabs').style.display='none';
+  if(S.data[S.main])$('#summary').innerHTML='';else renderSummary();
+  renderView();
 }
 
 /* ---------- 이벤트 ---------- */
@@ -581,6 +619,7 @@ document.addEventListener('click',e=>{
   else if(a==='cat'){S.cat=t.dataset.id;renderView()}
   else if(a==='sort'){S.sort=t.dataset.s;renderView()}
   else if(a==='kw'){S.kw=t.dataset.k;renderView()}
+  else if(a==='more'){moreTopic(t.dataset.n)}
   else if(a==='edittopics'){S.editTopics=!S.editTopics;renderView()}
   else if(a==='group'){const g=t.dataset.g;S.groups=S.groups.includes(g)?S.groups.filter(x=>x!==g):[...S.groups,g];lsSetJ('ytr_groups',S.groups);renderView()}
   else if(a==='deltopic'){S.topics.splice(+t.dataset.i,1);lsSetJ('ytr_topics2',S.topics);const d=S.data[S.main];if(d)d.topics=d.topics.filter(x=>S.topics.some(y=>y.n===x.n));renderView()}
