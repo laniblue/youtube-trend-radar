@@ -159,7 +159,7 @@ footer{margin-top:32px;font-size:14px;color:var(--t3);line-height:1.7}
       <li>키 제한에서 <b>API 제한 → YouTube Data API v3</b>만 골라요. 웹사이트 제한은 걸지 마세요. 파일로 열면 막혀요.</li>
       <li>만든 키를 복사해서 위 칸에 붙여 넣어요.</li>
     </ol>
-    <div class="note">무료 사용량은 하루 10,000이에요. 내 주제 검색이 하나에 100씩 들어서, 내 주제는 3시간에 한 번만 새로 검색해요. 키는 이 브라우저에만 저장되고, 이 파일을 다른 사람에게 줘도 키는 같이 가지 않아요.</div>
+    <div class="note">무료 사용량은 하루 10,000이에요. 주제 검색이 하나에 100씩 들어서 6시간에 한 번만 새로 검색하고, 9,000이 넘으면 자동으로 멈춰요. 안 보는 묶음은 꺼 두면 아껴져요. 키는 이 브라우저에만 저장되고, 이 파일을 다른 사람에게 줘도 키는 같이 가지 않아요.</div>
     <div class="mbtns">
       <button class="btn gray" data-act="delkey">키 지우기</button>
       <button class="btn gray" data-act="close">닫기</button>
@@ -172,17 +172,34 @@ footer{margin-top:32px;font-size:14px;color:var(--t3);line-height:1.7}
 const REGIONS={KR:'한국',JP:'일본',US:'미국'};
 const LANG={KR:'ko',JP:'ja'};
 const TYPE={dan:'반짝',jang:'꾸준',mid:'애매'};
+const GROUPS={base:'기본',family:'가족',men:'3~50대 남자',my:'내가 추가'};
 const DEF_TOPICS=[
- {n:'웃긴 영상',q:{KR:'웃긴 영상',JP:'面白い 動画',US:'funny'}},
- {n:'해외 웃긴 영상',q:{KR:'해외 웃긴 영상',JP:'海外 面白い 動画',US:'funny fails'}},
- {n:'장난·몰카',q:{KR:'몰카 장난',JP:'ドッキリ',US:'prank'}},
- {n:'밈·챌린지',q:{KR:'밈 챌린지',JP:'ミーム チャレンジ',US:'meme trend'}},
- {n:'지금 이슈',q:{KR:'화제 이슈',JP:'話題',US:'viral'}},
- {n:'강아지·고양이',q:{KR:'강아지 고양이',JP:'犬 猫',US:'funny dog cat'}},
- {n:'스포츠',q:{KR:'스포츠',JP:'スポーツ',US:'sports'}}
+ {g:'base',n:'웃긴 영상',q:{KR:'웃긴 영상',JP:'面白い 動画',US:'funny'}},
+ {g:'base',n:'해외 웃긴 영상',q:{KR:'해외 웃긴 영상',JP:'海外 面白い 動画',US:'funny fails'}},
+ {g:'base',n:'장난·몰카',q:{KR:'몰카 장난',JP:'ドッキリ',US:'prank'}},
+ {g:'base',n:'밈·챌린지',q:{KR:'밈 챌린지',JP:'ミーム チャレンジ',US:'meme trend'}},
+ {g:'base',n:'지금 이슈',q:{KR:'화제 이슈',JP:'話題',US:'viral'}},
+ {g:'base',n:'강아지·고양이',q:{KR:'강아지 고양이',JP:'犬 猫',US:'funny dog cat'}},
+ {g:'base',n:'스포츠',q:{KR:'스포츠',JP:'スポーツ',US:'sports'}},
+ {g:'family',n:'가족',q:{KR:'가족 웃긴',JP:'家族 面白い',US:'family funny'}},
+ {g:'family',n:'형제·자매',q:{KR:'형제 자매',JP:'兄弟 姉妹',US:'siblings funny'}},
+ {g:'family',n:'부부',q:{KR:'부부',JP:'夫婦',US:'husband wife funny'}},
+ {g:'family',n:'어른과 아이',q:{KR:'아빠와 아이',JP:'親子',US:'dad and kid funny'}},
+ {g:'men',n:'블랙박스·사고',q:{KR:'블랙박스',JP:'ドラレコ',US:'dashcam'}},
+ {g:'men',n:'격투기',q:{KR:'격투기',JP:'格闘技',US:'mma knockout'}},
+ {g:'men',n:'축구·야구',q:{KR:'축구',JP:'野球',US:'baseball'}},
+ {g:'men',n:'자동차',q:{KR:'자동차',JP:'車',US:'cars'}},
+ {g:'men',n:'밀리터리',q:{KR:'군대',JP:'自衛隊',US:'military'}},
+ {g:'men',n:'낚시',q:{KR:'낚시',JP:'釣り',US:'fishing'}},
+ {g:'men',n:'장인·기술',q:{KR:'장인 기술',JP:'職人 技術',US:'craftsman skill'}},
+ {g:'men',n:'게임',q:{KR:'게임',JP:'ゲーム',US:'gaming'}}
 ];
+const DAY_LIMIT=9000; // 하루 10,000 중 여유 남기기
+function unitKey(){const d=new Date(Date.now()-8*36e5);return 'ytr_units_'+d.toISOString().slice(0,10)} // 미국 서부 날짜 기준(한국 오후 4~5시 초기화)
+function unitsUsed(){return +(lsGet(unitKey())||0)}
+function addUnits(n){lsSet(unitKey(),String(unitsUsed()+n))}
 const HIDE=new Set(['1','2','29']); // 영화/애니메이션, 자동차, 비영리
-const TOPIC_TTL=3*36e5; // 내 주제 검색은 3시간에 한 번 (무료 사용량 아끼기)
+const TOPIC_TTL=6*36e5; // 주제 검색은 6시간에 한 번 (무료 사용량 아끼기)
 const STOP=new Set(['shorts','short','쇼츠','the','and','for','with','you','this','that','are','was','not','but','from','your','what','how','why','who','official','video','mv','ep','vs','feat','live','new','full','part','de','la','el','en','que','do','da','em','um','uma','und','der','die','das','le','les','des','di','il','진짜','영상','오늘','우리','그리고','이거','이게','근데','너무','정말','가장','이번','지금','하는','있는','없는','하고','해서','유튜브','youtube','www','com','https','です','ます','する','した','これ','それ','動画','公式','ショート','して','ない','から','まで','こと','もの']);
 const FATAL=new Set(['keyInvalid','quotaExceeded','dailyLimitExceeded','accessNotConfigured','ipRefererBlocked','forbidden','API_KEY_INVALID','rateLimitExceeded']);
 
@@ -204,7 +221,9 @@ const isShort=v=>v.dur>0&&v.dur<=180;
 const vids=(list,sh)=>sh?list.filter(isShort):list;
 
 const S={key:lsGet('ytr_key')||'',regions:lsJ('ytr_regions',['KR','JP','US']),main:lsGet('ytr_main')||'KR',cmp:lsGet('ytr_cmp')||'JP',shorts:lsGet('ytr_shorts')==='1',tab:'lead',cat:'all',sort:'speed',kw:null,data:{},loading:'',busy:false,err:'',auto:+(lsGet('ytr_auto')||0),timer:null,last:0};
-S.topics=lsJ('ytr_topics',DEF_TOPICS).map(t=>t.n==='야구'&&t.q?DEF_TOPICS.find(x=>x.n==='스포츠'):t);S.editTopics=false;S.shorts=true;S.cat='';
+S.topics=lsJ('ytr_topics2',DEF_TOPICS);
+S.groups=lsJ('ytr_groups',['base','family','men','my']);
+const onTopics=()=>S.topics.filter(t=>S.groups.includes(t.g||'my'));S.editTopics=false;S.shorts=true;S.cat='';
 S.regions=S.regions.filter(r=>REGIONS[r]);if(!S.regions.length)S.regions=['KR'];
 
 /* ---------- API ---------- */
@@ -212,6 +231,7 @@ async function api(path,params){
   const u=new URL('https://www.googleapis.com/youtube/v3/'+path);
   for(const k in params)if(params[k]!=null)u.searchParams.set(k,params[k]);
   u.searchParams.set('key',S.key);
+  addUnits(path==='search'?100:1);
   let r;
   try{r=await fetch(u)}catch(e){const er=new Error('인터넷 연결을 확인해 주세요.');er.fatal=true;throw er}
   const j=await r.json().catch(()=>({}));
@@ -257,10 +277,11 @@ async function loadRegion(rc){
   // 내 주제: 최근 3일 영상 검색 (보기 나라만, 3시간마다)
   const topics=[];
   if(rc===S.main){
-    for(const tp of S.topics){
+    for(const tp of onTopics()){
       const q=(tp.q&&tp.q[rc])||tp.n;const ck='ytr_tps_'+rc+'_'+q;
       let c=lsJ(ck,null);
-      if(!c||now-c.t>TOPIC_TTL)try{
+      if((!c||now-c.t>TOPIC_TTL)&&unitsUsed()+101>DAY_LIMIT){S.topicErr='오늘 무료 사용량이 거의 다 돼서 일부 주제는 예전 결과예요';if(!c)continue}
+      else if(!c||now-c.t>TOPIC_TTL)try{
         const s=await api('search',{part:'snippet',type:'video',order:'viewCount',videoDuration:'short',publishedAfter:new Date(now-3*864e5).toISOString(),regionCode:rc,relevanceLanguage:LANG[rc]||'en',maxResults:25,q});
         const ids=(s.items||[]).map(x=>x.id&&x.id.videoId).filter(Boolean);
         let items=[];
@@ -271,7 +292,7 @@ async function loadRegion(rc){
         else if(e.fatal)throw e;
         if(!c)continue;
       }
-      topics.push({n:tp.n,vids:c.items.map(x=>Object.assign({},x))});
+      topics.push({n:tp.n,g:tp.g||'my',vids:c.items.map(x=>Object.assign({},x))});
     }
   }
   // 속도 계산: 지난 기록(5분 이상 전)과 비교하면 실측, 없으면 업로드 후 평균
@@ -427,7 +448,7 @@ function renderSummary(){
 const TABS=[['lead','뜨는 쇼츠'],['type','반짝 vs 꾸준'],['kw','뜨는 단어'],['cmp','나라 비교']];
 function viewShorts(v,d){
   const opts=[];
-  d.topics.forEach(t=>{const l=vids(t.vids,true);if(l.length)opts.push({id:'t:'+t.n,name:t.n,sum:[...l].sort((a,b)=>b.speed-a.speed).slice(0,10).reduce((s,x)=>s+x.speed,0),my:true})});
+  d.topics.filter(t=>S.groups.includes(t.g||'my')).forEach(t=>{const l=vids(t.vids,true);if(l.length)opts.push({id:'t:'+t.n,name:t.n,sum:[...l].sort((a,b)=>b.speed-a.speed).slice(0,10).reduce((s,x)=>s+x.speed,0),my:true})});
   const cids=[...new Set([...d.chart.map(x=>x.cat),...Object.keys(d.byCat)])].filter(id=>!HIDE.has(id));
   cids.forEach(id=>{const m=new Map();d.chart.filter(x=>x.cat===id).forEach(x=>m.set(x.id,x));(d.byCat[id]||[]).forEach(x=>{if(!m.has(x.id))m.set(x.id,x)});const l=vids([...m.values()],true);if(l.length)opts.push({id,name:catName(S.main,id),sum:[...l].sort((a,b)=>b.speed-a.speed).slice(0,10).reduce((s,x)=>s+x.speed,0)})});
   opts.sort((a,b)=>b.sum-a.sum);
@@ -437,6 +458,7 @@ function viewShorts(v,d){
    <div class="ctl-row" style="margin-top:14px"><input id="newTopic" placeholder="예: 축구, 먹방, 해외 반응" style="flex:1;min-width:180px;border:2px solid var(--line);border-radius:12px;padding:10px 12px;font-size:15px"><button class="btn" data-act="addtopic">추가</button></div>
    <div class="sub" style="margin-top:8px">추가하면 새로고침 때 검색해요</div></div>`:'';
   v.innerHTML=`<div class="card" style="padding:20px">
+   <div class="chips" style="margin-bottom:14px"><span class="label" style="margin:0;align-self:center">묶음</span>${Object.keys(GROUPS).filter(g=>g!=='my'||S.topics.some(t=>t.g==='my')).map(g=>`<button class="chip sm" data-act="group" data-g="${g}" style="${S.groups.includes(g)?'background:var(--t1);color:#fff':''}">${GROUPS[g]}</button>`).join('')}</div>
    <div class="chips">${opts.map((o,i)=>`<button class="chip ${S.cat===o.id?'on':''}" data-act="cat" data-id="${esc(o.id)}">${i+1}. ${esc(o.name)}</button>`).join('')}
    <button class="chip" data-act="edittopics" style="background:none;color:var(--t3)">${S.editTopics?'닫기':'+ 주제'}</button></div>
    <div class="chips" style="margin-top:14px">${[['speed','빨리 크는 순'],['views','조회수 순'],['new','최신 순']].map(s=>`<button class="chip sm ${S.sort===s[0]?'on':''}" data-act="sort" data-s="${s[0]}" style="${S.sort===s[0]?'background:var(--t1)':''}">${s[1]}</button>`).join('')}</div></div>
@@ -560,8 +582,9 @@ document.addEventListener('click',e=>{
   else if(a==='sort'){S.sort=t.dataset.s;renderView()}
   else if(a==='kw'){S.kw=t.dataset.k;renderView()}
   else if(a==='edittopics'){S.editTopics=!S.editTopics;renderView()}
-  else if(a==='deltopic'){S.topics.splice(+t.dataset.i,1);lsSetJ('ytr_topics',S.topics);const d=S.data[S.main];if(d)d.topics=d.topics.filter(x=>S.topics.some(y=>y.n===x.n));renderView()}
-  else if(a==='addtopic'){const w=($('#newTopic').value||'').trim();if(!w||S.topics.some(x=>x.n===w))return;S.topics.push({n:w});lsSetJ('ytr_topics',S.topics);renderView()}
+  else if(a==='group'){const g=t.dataset.g;S.groups=S.groups.includes(g)?S.groups.filter(x=>x!==g):[...S.groups,g];lsSetJ('ytr_groups',S.groups);renderView()}
+  else if(a==='deltopic'){S.topics.splice(+t.dataset.i,1);lsSetJ('ytr_topics2',S.topics);const d=S.data[S.main];if(d)d.topics=d.topics.filter(x=>S.topics.some(y=>y.n===x.n));renderView()}
+  else if(a==='addtopic'){const w=($('#newTopic').value||'').trim();if(!w||S.topics.some(x=>x.n===w))return;S.topics.push({g:'my',n:w});lsSetJ('ytr_topics2',S.topics);renderView()}
 });
 document.addEventListener('change',e=>{
   const t=e.target.closest('[data-act]');if(!t)return;const a=t.dataset.act;
