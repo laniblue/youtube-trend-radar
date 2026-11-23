@@ -169,7 +169,7 @@ footer{margin-top:32px;font-size:14px;color:var(--t3);line-height:1.7}
 </div>
 
 <script>
-const REGIONS={KR:'한국',JP:'일본',US:'미국'};
+const REGIONS={JP:'일본',KR:'한국',US:'미국'};
 const LANG={KR:'ko',JP:'ja'};
 const TYPE={dan:'반짝',jang:'꾸준',mid:'애매'};
 const GROUPS={base:'기본',family:'가족',men:'3~50대 남자',my:'내가 추가'};
@@ -220,7 +220,7 @@ function median(a){if(!a.length)return 0;const b=[...a].sort((x,y)=>x-y),i=Math.
 const isShort=v=>v.dur>0&&v.dur<=180;
 const vids=(list,sh)=>sh?list.filter(isShort):list;
 
-const S={key:lsGet('ytr_key')||'',regions:lsJ('ytr_regions',['KR','JP','US']),main:lsGet('ytr_main')||'KR',cmp:lsGet('ytr_cmp')||'JP',shorts:lsGet('ytr_shorts')==='1',tab:'lead',cat:'all',sort:'speed',kw:null,data:{},loading:'',busy:false,err:'',auto:+(lsGet('ytr_auto')||0),timer:null,last:0};
+const S={key:lsGet('ytr_key')||'',regions:lsJ('ytr_regions',['KR','JP','US']),main:lsGet('ytr_main')||'JP',cmp:lsGet('ytr_cmp')||'KR',shorts:lsGet('ytr_shorts')==='1',tab:'lead',cat:'all',sort:'speed',kw:null,data:{},loading:'',busy:false,err:'',auto:+(lsGet('ytr_auto')||0),timer:null,last:0};
 S.topics=lsJ('ytr_topics2',DEF_TOPICS);
 S.groups=lsJ('ytr_groups',['base','family','men','my']);
 const onTopics=()=>S.topics.filter(t=>S.groups.includes(t.g||'my'));S.editTopics=false;S.shorts=true;S.cat='';
